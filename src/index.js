@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
-import { mkdirSync, existsSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import chalk from 'chalk';
 import {
   askTechnologies,
@@ -12,6 +12,7 @@ import {
 import { createDevcontainerFiles } from './templates.js';
 import { ensureUvx, runSpecKit } from './speckit.js';
 import { generateSpecKitDoc } from './markdown.js';
+import { generateGitignore } from './gitignore.js';
 
 export async function run() {
   console.log(
@@ -67,15 +68,16 @@ export async function run() {
   // Step 5: Spec-kit integration
   console.log(chalk.bold('\n  Etape 5/5 : Integration spec-kit\n'));
   const wantSpecKit = await askSpecKit();
+  let aiProvider = null;
 
   if (wantSpecKit) {
     const uvxReady = await ensureUvx();
 
     if (uvxReady) {
-      const aiProvider = await askAiProvider();
+      aiProvider = await askAiProvider();
       const speckitOptions = await askSpecKitOptions();
 
-      const success = runSpecKit(targetDir, {
+      runSpecKit(targetDir, {
         aiProvider,
         noGit: speckitOptions.noGit,
         scriptType: speckitOptions.scriptType,
@@ -88,6 +90,12 @@ export async function run() {
       console.log(chalk.green(`\n  Documentation generee : ${docPath}`));
     }
   }
+
+  // Generate .gitignore
+  const gitignoreContent = generateGitignore(technologies, aiProvider, wantSpecKit);
+  const gitignorePath = join(targetDir, '.gitignore');
+  writeFileSync(gitignorePath, gitignoreContent);
+  console.log(chalk.green(`\n  .gitignore genere : ${gitignorePath}`));
 
   // Summary
   console.log(chalk.bold.green('\n  Terminé !\n'));
