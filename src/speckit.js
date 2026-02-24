@@ -14,6 +14,7 @@ export function checkUvx() {
 
 export async function ensureUvx() {
   if (checkUvx()) {
+    console.log(chalk.green('  uvx detecte.'));
     return true;
   }
 
@@ -40,9 +41,12 @@ export async function ensureUvx() {
   try {
     execSync('pip install uv', { stdio: 'pipe' });
     spinner.succeed('uv installe avec succes');
-    return true;
-  } catch {
+  } catch (error) {
     spinner.fail('Echec de l\'installation de uv via pip');
+    const stderr = error.stderr?.toString().trim();
+    if (stderr) {
+      console.log(chalk.dim(`  ${stderr}`));
+    }
     console.log(
       chalk.dim(
         '  Essayez manuellement : pip install uv  ou  curl -LsSf https://astral.sh/uv/install.sh | sh'
@@ -50,6 +54,41 @@ export async function ensureUvx() {
     );
     return false;
   }
+
+  // Verify uvx is actually available after installation
+  if (!checkUvx()) {
+    console.log(
+      chalk.yellow(
+        '\n  uv a ete installe mais uvx n\'est pas dans le PATH.'
+      )
+    );
+    // Try to find where pip installed it
+    try {
+      const pipShow = execSync('pip show uv', { stdio: 'pipe' }).toString();
+      const locationMatch = pipShow.match(/Location:\s*(.+)/);
+      if (locationMatch) {
+        console.log(chalk.dim(`  uv installe dans : ${locationMatch[1]}`));
+      }
+    } catch {
+      // ignore
+    }
+    console.log(chalk.dim('  Solutions possibles :'));
+    console.log(chalk.dim('    1. Ajoutez ~/.local/bin a votre PATH :'));
+    console.log(chalk.dim('       export PATH="$HOME/.local/bin:$PATH"'));
+    console.log(chalk.dim('    2. Ou installez avec le script officiel :'));
+    console.log(
+      chalk.dim(
+        '       curl -LsSf https://astral.sh/uv/install.sh | sh'
+      )
+    );
+    console.log(
+      chalk.dim('    3. Puis relancez : devkit init\n')
+    );
+    return false;
+  }
+
+  console.log(chalk.green('  uvx verifie et disponible dans le PATH.'));
+  return true;
 }
 
 export function runSpecKit(targetDir, options) {
@@ -87,22 +126,46 @@ export function runSpecKit(targetDir, options) {
   }
 
   const command = args.join(' ');
+  console.log(chalk.dim(`\n  Commande : ${command}`));
+  console.log(chalk.dim(`  Dossier  : ${targetDir}\n`));
   const spinner = ora('Execution de spec-kit...').start();
 
   try {
-    execSync(command, {
+    const output = execSync(command, {
       cwd: targetDir,
       stdio: 'pipe',
       timeout: 120000,
     });
     spinner.succeed('Spec-kit initialise avec succes');
+    const stdout = output?.toString().trim();
+    if (stdout) {
+      console.log(chalk.dim(`  ${stdout}`));
+    }
     return true;
   } catch (error) {
     spinner.fail('Echec de l\'execution de spec-kit');
-    console.log(chalk.red(`  Commande : ${command}`));
-    if (error.stderr) {
-      console.log(chalk.dim(`  ${error.stderr.toString().trim()}`));
+    console.log(chalk.red(`\n  Commande : ${command}`));
+    if (error.status != null) {
+      console.log(chalk.red(`  Code de sortie : ${error.status}`));
     }
+    const stderr = error.stderr?.toString().trim();
+    const stdout = error.stdout?.toString().trim();
+    if (stderr) {
+      console.log(chalk.yellow('  [stderr]'));
+      console.log(chalk.dim(`  ${stderr}`));
+    }
+    if (stdout) {
+      console.log(chalk.yellow('  [stdout]'));
+      console.log(chalk.dim(`  ${stdout}`));
+    }
+    if (!stderr && !stdout) {
+      console.log(chalk.yellow(`  Erreur : ${error.message}`));
+    }
+    console.log(
+      chalk.dim(
+        '\n  Verifiez que uvx est dans votre PATH en executant : uvx --version'
+      )
+    );
     return false;
   }
 }
