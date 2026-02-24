@@ -114,6 +114,7 @@ export function runSpecKit(targetDir, options) {
     args.push('.', '--here');
   }
 
+  args.push('--force');
   args.push('--ai', aiProvider);
   args.push('--script', scriptType);
 
